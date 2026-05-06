@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "socket.io-client": "^4.7.2"
+    "@socket.io/redis-adapter": "^8.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "redis": "^5.12.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.8"
+    "typescript": "^6.0.3",
+    "vite": "^5.4.21"
   }
 }
