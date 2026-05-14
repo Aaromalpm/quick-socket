@@ -109,7 +109,7 @@ async function runTests() {
   // ── Test 8: editMessage ──
   const editResult = await new Promise((resolve) => {
     client2.once('message:edited', (data) => resolve(data))
-    quickSocket.editMessage('room-1', 'msg-001', 'Updated!')
+    quickSocket.editMessage('room-1', msgResult.id, 'Updated!')
     setTimeout(() => resolve(null), 2000)
   })
   log('editMessage delivers edited event', editResult?.content === 'Updated!')
@@ -162,7 +162,7 @@ async function runTests() {
   log('getRoomMessages page 1 returns latest slice', pageOne.messages[0]?.content === 'Second' && pageOne.messages[1]?.content === 'Third')
 
   const pageTwo = quickSocket.getRoomMessages('room-1', 2, 2)
-  log('getRoomMessages page 2 returns older messages', pageTwo.messages.length === 1 && pageTwo.messages[0]?.content === 'Hello!')
+  log('getRoomMessages page 2 returns older messages', pageTwo.messages.length === 1 && pageTwo.messages[0]?.content === 'Updated!')
 
   // ── Test 13: closeRoom ──
   const closeResult = await new Promise((resolve) => {
@@ -248,6 +248,23 @@ async function runTests() {
         'authMiddleware missing auth object returns error',
         err instanceof Error && err.message === 'No token provided'
       )
+      resolve()
+    }
+    middleware(socket, next)
+  })
+
+  // ── Test 20: authMiddleware async authFn ──
+  await new Promise((resolve) => {
+    const asyncAuthFn = async (token) => {
+      await wait(10)
+      if (token === 'async-valid') return { id: 99 }
+      throw new Error('invalid')
+    }
+    const middleware = authMiddleware(asyncAuthFn)
+    const socket = { handshake: { auth: { token: 'async-valid' } } }
+    const next = (err) => {
+      log('authMiddleware handles async authFn', err === undefined)
+      log('authMiddleware async sets socket.user', socket.user?.id === 99)
       resolve()
     }
     middleware(socket, next)

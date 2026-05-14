@@ -44,14 +44,15 @@ function sendMessage(roomId, message) {
 function editMessage(roomId, messageId, newContent) {
   const messages = roomMessages.get(roomId) || []
   const message = messages.find(msg => msg.id === messageId)
-  if (message) {
-    message.content = newContent
-    message.editedAt = new Date()
-  }
+  if (!message) throw new Error(
+    `[quick-socket] editMessage() could not find message "${messageId}" in room "${roomId}".`
+  )
+  message.content = newContent
+  message.editedAt = new Date()
   getIO().to(roomId).emit('message:edited', {
     messageId,
     content: newContent,
-    editedAt: new Date()
+    editedAt: message.editedAt
   })
 }
 
