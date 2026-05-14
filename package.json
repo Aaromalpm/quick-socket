@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Integrate Socket.io instantly in any Node.js app — rooms, messages, typing, read receipts in minutes",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
   "keywords": [
     "socket.io",
     "websocket",
