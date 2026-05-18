@@ -8,6 +8,8 @@ const MESSAGE_TYPES = {
 }
 
 const roomMessages = new Map()
+const MAX_MESSAGES_PER_ROOM = 1000
+const MAX_PAGE_SIZE = 100
 
 function sendMessage(roomId, message) {
   if (!roomId) throw new Error(
@@ -36,7 +38,11 @@ function sendMessage(roomId, message) {
   if (!roomMessages.has(roomId)) {
     roomMessages.set(roomId, [])
   }
-  roomMessages.get(roomId).push(payload)
+  const messages = roomMessages.get(roomId)
+  messages.push(payload)
+  if (messages.length > MAX_MESSAGES_PER_ROOM) {
+    messages.splice(0, messages.length - MAX_MESSAGES_PER_ROOM)
+  }
   getIO().to(roomId).emit('message:new', payload)
   return payload
 }
@@ -47,6 +53,11 @@ function editMessage(roomId, messageId, newContent) {
   if (message) {
     message.content = newContent
     message.editedAt = new Date()
+  } else {
+    console.warn(
+      `[quick-socket] editMessage warning: message "${messageId}" was not found in memory for room "${roomId}". ` +
+      'The socket event was emitted, but the in-memory message history was not updated.'
+    )
   }
   getIO().to(roomId).emit('message:edited', {
     messageId,
@@ -71,7 +82,7 @@ function sendTyping(roomId, userId, isTyping) {
 function getRoomMessages(roomId, page = 1, limit = 20) {
   const messages = roomMessages.get(roomId) || []
   const currentPage = Math.max(Number(page) || 1, 1)
-  const pageSize = Math.max(Number(limit) || 20, 1)
+  const pageSize = Math.min(Math.max(Number(limit) || 20, 1), MAX_PAGE_SIZE)
   const total = messages.length
   const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize)
   const end = total - (currentPage - 1) * pageSize
