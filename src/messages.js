@@ -59,10 +59,15 @@ function editMessage(roomId, messageId, newContent) {
       'The socket event was emitted, but the in-memory message history was not updated.'
     )
   }
+  if (!message) throw new Error(
+    `[quick-socket] editMessage() could not find message "${messageId}" in room "${roomId}".`
+  )
+  message.content = newContent
+  message.editedAt = new Date()
   getIO().to(roomId).emit('message:edited', {
     messageId,
     content: newContent,
-    editedAt: new Date()
+    editedAt: message.editedAt
   })
 }
 

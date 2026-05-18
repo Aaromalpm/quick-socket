@@ -48,9 +48,11 @@ function joinRoom(socket, roomId, userMeta = {}) {
 }
 
 function leaveRoom(socket, roomId) {
-  socket.leave(roomId)
   const room = rooms.get(roomId)
+  let userId
   if (room) {
+    const participant = room.participants.find(p => p.socketId === socket.id)
+    userId = participant?.userId
     room.participants = room.participants.filter(p => p.socketId !== socket.id)
   } else {
     console.warn(
@@ -58,7 +60,8 @@ function leaveRoom(socket, roomId) {
       'The socket was removed from the Socket.IO room, but no participant entry was cleaned up.'
     )
   }
-  getIO().to(roomId).emit('user:left', { socketId: socket.id, roomId })
+  socket.leave(roomId)
+  getIO().to(roomId).emit('user:left', { userId, roomId })
 }
 
 function getRoomParticipants(roomId) {
