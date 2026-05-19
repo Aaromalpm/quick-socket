@@ -39,7 +39,7 @@ npm install
 npm test
 ```
 
-All 22 tests should pass before you start making changes.
+All tests should pass before you start making changes.
 
 ---
 
@@ -93,17 +93,17 @@ Then go to GitHub and open a Pull Request. Describe what you changed and why.
 
 ## Good First Issues
 
-New to open source? Start with these:
+New to open source? These are real open issues — pick one and comment on it to claim it:
 
-- Add TypeScript type definitions
-- Add a React.js example
-- Add Redis support for multi-server scaling
-- Add message pagination
-- Add unit test for `authMiddleware`
-- Add unit test for `notifyUser`
-- Improve error messages
+| Issue | What to do |
+|-------|-----------|
+| [#17 — Test: presence system](https://github.com/Aaromalpm/quick-socket/issues/17) | Write tests for `trackPresence`, `setPresence`, `getPresence`, `getRoomPresence` |
+| [#18 — Test: rate limiter](https://github.com/Aaromalpm/quick-socket/issues/18) | Write tests for `createRateLimiter` — window reset, blocked packets, custom callback |
+| [#19 — Test: reconnect recovery](https://github.com/Aaromalpm/quick-socket/issues/19) | Write tests for `rejoinRooms` and `getUserRooms` |
 
-Look for issues labeled **"good first issue"** on GitHub.
+These are great starting points if you're new to open source. All three just need tests — no new logic required.
+
+Look for issues labeled **"good first issue"** on GitHub for more.
 
 ---
 

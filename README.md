@@ -48,6 +48,9 @@ That's it. Your Socket.io server is ready.
 - Broadcast to all users
 - Notify specific users or rooms
 - Auth middleware support
+- Presence tracking (online / away / offline)
+- Per-socket rate limiting
+- Reconnect recovery with missed messages
 
 ---
 
@@ -169,6 +172,9 @@ Listen to these events on the client side:
 | `user:joined` | User joined the room |
 | `user:left` | User left the room |
 | `room:closed` | Room was closed |
+| `presence:change` | User came online, went offline, or changed status |
+| `rateLimit:exceeded` | Socket sent too many messages in the time window |
+| `reconnect:recovery` | Missed messages delivered after reconnect |
 
 ### Example
 
@@ -241,15 +247,107 @@ console.log(participants)
 
 ---
 
+## Presence
+
+Track who is online, away, or offline in real time.
+
+```javascript
+io.on('connection', (socket) => {
+  quickSocket.trackPresence(socket, socket.user.id)
+  // automatically emits presence:change on connect and disconnect
+})
+
+// manually set a user as away
+quickSocket.setPresence('user-1', quickSocket.PRESENCE_STATUS.AWAY)
+
+// query presence
+quickSocket.getPresence('user-1')
+// { status: 'away', lastSeen: null, meta: {} }
+
+// get presence for everyone in a room
+quickSocket.getRoomPresence('room-001')
+// { 'user-1': { status: 'online', ... }, 'user-2': { status: 'offline', lastSeen: Date } }
+```
+
+Client listens:
+
+```javascript
+socket.on('presence:change', ({ userId, status, lastSeen }) => {
+  console.log(userId, 'is now', status)
+})
+```
+
+---
+
+## Rate Limiting
+
+Protect rooms from message spam with a sliding window rate limiter.
+
+```javascript
+const io = quickSocket.init(server)
+
+// max 10 messages per second per socket
+io.use(quickSocket.createRateLimiter({ limit: 10, windowMs: 1000 }))
+
+// limit only specific events
+io.use(quickSocket.createRateLimiter({
+  limit: 5,
+  windowMs: 1000,
+  events: ['message:send']
+}))
+```
+
+Client receives when limit is hit:
+
+```javascript
+socket.on('rateLimit:exceeded', ({ event, limit, retryAfter }) => {
+  console.log(`Slow down. Retry in ${retryAfter}s`)
+})
+```
+
+---
+
+## Reconnect Recovery
+
+When a user reconnects, re-join their rooms and deliver messages they missed.
+
+```javascript
+io.on('connection', (socket) => {
+  const userId = socket.user.id
+  const lastSeen = socket.handshake.auth?.lastSeen
+
+  const { rooms, missedMessages } = quickSocket.rejoinRooms(socket, userId, {
+    since: lastSeen
+  })
+
+  // send missed messages back to the client
+  socket.emit('reconnect:recovery', { rooms, missedMessages })
+})
+```
+
+---
+
+## Heartbeat Config
+
+Control Socket.io's ping/pong to keep connections alive on flaky networks.
+
+```javascript
+quickSocket.init(server, {
+  pingInterval: 10000, // default 25000ms
+  pingTimeout: 5000    // default 20000ms
+})
+```
+
+---
+
 ## Contributing
 
-Contributions are welcome! Here's how you can help:
+Contributions are welcome! Check the [open issues](https://github.com/Aaromalpm/quick-socket/issues) to see what needs doing.
 
-- Fix a bug
-- Add TypeScript support
-- Add Redis support for multi-server scaling
-- Add a React.js example
-- Improve documentation
+Good places to start:
+- [#17](https://github.com/Aaromalpm/quick-socket/issues/17) — tests for presence system
+- [#18](https://github.com/Aaromalpm/quick-socket/issues/18) — tests for rate limiter
+- [#19](https://github.com/Aaromalpm/quick-socket/issues/19) — tests for reconnect recovery
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
