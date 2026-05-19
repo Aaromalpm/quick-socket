@@ -3,6 +3,8 @@ import type { Server as SocketIOServer, Socket } from 'socket.io'
 
 export interface InitOptions {
   cors?: string
+  pingInterval?: number
+  pingTimeout?: number
 }
 
 export interface JoinRoomMeta {
@@ -91,3 +93,50 @@ export function getRoomMessages(roomId: string, page?: number, limit?: number): 
 export function markDelivered(roomId: string, messageId: string, userId: string): void
 export function markRead(roomId: string, messageId: string, userId: string): void
 export function markAllRead(roomId: string, userId: string): void
+
+// Presence
+export type PresenceStatus = 'online' | 'away' | 'offline'
+
+export interface PresenceInfo {
+  status: PresenceStatus
+  lastSeen: Date | null
+  meta: Record<string, any>
+}
+
+export interface RoomPresence {
+  [userId: string]: PresenceInfo
+}
+
+export const PRESENCE_STATUS: {
+  readonly ONLINE: 'online'
+  readonly AWAY: 'away'
+  readonly OFFLINE: 'offline'
+}
+
+export function trackPresence(socket: Socket, userId: string): void
+export function setPresence(userId: string, status: PresenceStatus, meta?: Record<string, any>): void
+export function getPresence(userId: string): PresenceInfo
+export function getRoomPresence(roomId: string): RoomPresence
+
+// Rate Limiting
+export interface RateLimitOptions {
+  limit?: number
+  windowMs?: number
+  events?: string[]
+  onLimitReached?: (socket: Socket, packet: any[]) => void
+}
+
+export function createRateLimiter(options?: RateLimitOptions): (socket: Socket, next: (err?: Error) => void) => void
+
+// Reconnect Recovery
+export interface RejoinOptions {
+  since?: string | Date
+}
+
+export interface RejoinResult {
+  rooms: string[]
+  missedMessages: Record<string, MessagePayload[]>
+}
+
+export function rejoinRooms(socket: Socket, userId: string, options?: RejoinOptions): RejoinResult
+export function getUserRooms(userId: string): string[]

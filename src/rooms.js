@@ -1,5 +1,6 @@
 const { getIO } = require('./server')
 const { clearRoomMessages } = require('./messages')
+const { trackUserRoom, untrackUserRoom, clearRoomFromAllUsers } = require('./reconnect')
 
 const rooms = new Map()
 
@@ -29,6 +30,7 @@ function joinRoom(socket, roomId, userMeta = {}) {
     '[quick-socket] joinRoom() requires a roomId as the second argument.'
   )
   socket.join(roomId)
+  trackUserRoom(userMeta.userId, roomId)
   const room = rooms.get(roomId)
   if (room) {
     room.participants.push({
@@ -54,6 +56,7 @@ function leaveRoom(socket, roomId) {
     const participant = room.participants.find(p => p.socketId === socket.id)
     userId = participant?.userId
     room.participants = room.participants.filter(p => p.socketId !== socket.id)
+    untrackUserRoom(userId, roomId)
   } else {
     console.warn(
       `[quick-socket] leaveRoom warning: room "${roomId}" does not exist in the rooms registry. ` +
@@ -71,6 +74,7 @@ function getRoomParticipants(roomId) {
 function closeRoom(roomId) {
   getIO().to(roomId).emit('room:closed', { roomId })
   clearRoomMessages(roomId)
+  clearRoomFromAllUsers(roomId)
   rooms.delete(roomId)
 }
 
