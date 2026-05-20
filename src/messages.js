@@ -51,7 +51,7 @@ function editMessage(roomId, messageId, newContent) {
   getIO().to(roomId).emit('message:edited', {
     messageId,
     content: newContent,
-    editedAt: new Date()
+    editedAt: message.editedAt
   })
 }
 

@@ -109,7 +109,7 @@ async function runTests() {
   // ── Test 8: editMessage ──
   const editResult = await new Promise((resolve) => {
     client2.once('message:edited', (data) => resolve(data))
-    quickSocket.editMessage('room-1', 'msg-001', 'Updated!')
+    quickSocket.editMessage('room-1', msgResult.id, 'Updated!')
     setTimeout(() => resolve(null), 2000)
   })
   log('editMessage delivers edited event', editResult?.content === 'Updated!')
@@ -212,7 +212,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing token returns error',
-        err instanceof Error && err.message === 'No token provided'
+        err instanceof Error && err.message.includes('Authentication failed: no token found')
       )
       resolve()
     }
@@ -230,7 +230,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware invalid token returns error',
-        err instanceof Error && err.message === 'Authentication failed'
+        err instanceof Error && err.message.includes('Authentication failed: the authFn you provided threw an error')
       )
       resolve()
     }
@@ -246,8 +246,25 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing auth object returns error',
-        err instanceof Error && err.message === 'No token provided'
+        err instanceof Error && err.message.includes('Authentication failed: no token found')
       )
+      resolve()
+    }
+    middleware(socket, next)
+  })
+
+  // ── Test 20: authMiddleware async authFn ──
+  await new Promise((resolve) => {
+    const asyncAuthFn = async (token) => {
+      await wait(10)
+      if (token === 'async-valid') return { id: 99 }
+      throw new Error('invalid')
+    }
+    const middleware = authMiddleware(asyncAuthFn)
+    const socket = { handshake: { auth: { token: 'async-valid' } } }
+    const next = (err) => {
+      log('authMiddleware handles async authFn', err === undefined)
+      log('authMiddleware async sets socket.user', socket.user?.id === 99)
       resolve()
     }
     middleware(socket, next)

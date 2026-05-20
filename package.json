@@ -1,8 +1,17 @@
 {
   "name": "quick-socket",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Integrate Socket.io instantly in any Node.js app — rooms, messages, typing, read receipts in minutes",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aaromalpm/quick-socket.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Aaromalpm/quick-socket/issues"
+  },
+  "homepage": "https://github.com/Aaromalpm/quick-socket#readme",
   "keywords": [
     "socket.io",
     "websocket",

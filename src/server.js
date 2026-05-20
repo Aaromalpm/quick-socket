@@ -7,7 +7,9 @@ function init(httpServer, options = {}) {
     cors: {
       origin: options.cors || '*',
       methods: ['GET', 'POST']
-    }
+    },
+    pingInterval: options.pingInterval || 25000,
+    pingTimeout: options.pingTimeout || 20000
   })
 
   io.on('connection', (socket) => {

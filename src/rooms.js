@@ -29,6 +29,7 @@ function joinRoom(socket, roomId, userMeta = {}) {
     '[quick-socket] joinRoom() requires a roomId as the second argument.'
   )
   socket.join(roomId)
+  trackUserRoom(userMeta.userId, roomId)
   const room = rooms.get(roomId)
   if (room) {
     room.participants.push({
@@ -48,17 +49,21 @@ function joinRoom(socket, roomId, userMeta = {}) {
 }
 
 function leaveRoom(socket, roomId) {
-  socket.leave(roomId)
   const room = rooms.get(roomId)
+  let userId
   if (room) {
+    const participant = room.participants.find(p => p.socketId === socket.id)
+    userId = participant?.userId
     room.participants = room.participants.filter(p => p.socketId !== socket.id)
+    untrackUserRoom(userId, roomId)
   } else {
     console.warn(
       `[quick-socket] leaveRoom warning: room "${roomId}" does not exist in the rooms registry. ` +
       'The socket was removed from the Socket.IO room, but no participant entry was cleaned up.'
     )
   }
-  getIO().to(roomId).emit('user:left', { socketId: socket.id, roomId })
+  socket.leave(roomId)
+  getIO().to(roomId).emit('user:left', { userId, roomId })
 }
 
 function getRoomParticipants(roomId) {
