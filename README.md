@@ -133,6 +133,9 @@ console.log(result)
 // }
 ```
 
+Page `1` returns the most recent messages.
+Message history is stored in memory per process, so pagination works for single-process deployments only.
+
 ### Notifications
 
 ```javascript

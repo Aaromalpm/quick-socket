@@ -175,6 +175,32 @@ async function runTests() {
   const messagesAfterClose = quickSocket.getRoomMessages('room-1', 1, 20)
   log('closeRoom clears stored room messages', messagesAfterClose.total === 0)
 
+  // ── Validation Tests ──
+  let validationPassed = true
+
+  try {
+    quickSocket.sendMessage(undefined, {})
+    validationPassed = false
+  } catch (err) {
+    if (!err.message.includes('requires a roomId')) validationPassed = false
+  }
+
+  try {
+    quickSocket.sendMessage('room-1', { senderId: 'u1', content: '' })
+    validationPassed = false
+  } catch (err) {
+    if (!err.message.includes('cannot be empty')) validationPassed = false
+  }
+
+  try {
+    quickSocket.createRoom('')
+    validationPassed = false
+  } catch (err) {
+    if (!err.message.includes('non-empty string roomId')) validationPassed = false
+  }
+
+  log('validation throws correct errors for invalid inputs', validationPassed)
+
   // ── Test 14: MESSAGE_TYPES constants ──
   log('MESSAGE_TYPES.TEXT is "text"', quickSocket.MESSAGE_TYPES.TEXT === 'text')
   log('MESSAGE_TYPES.IMAGE is "image"', quickSocket.MESSAGE_TYPES.IMAGE === 'image')
@@ -212,7 +238,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing token returns error',
-        err instanceof Error && err.message === 'No token provided'
+        err instanceof Error && err.message.includes('Authentication failed: no token found')
       )
       resolve()
     }
@@ -230,7 +256,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware invalid token returns error',
-        err instanceof Error && err.message === 'Authentication failed'
+        err instanceof Error && err.message.includes('Authentication failed: the authFn you provided threw an error')
       )
       resolve()
     }
@@ -246,7 +272,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing auth object returns error',
-        err instanceof Error && err.message === 'No token provided'
+        err instanceof Error && err.message.includes('Authentication failed: no token found')
       )
       resolve()
     }
