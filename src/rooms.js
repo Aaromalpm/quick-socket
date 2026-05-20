@@ -1,6 +1,5 @@
 const { getIO } = require('./server')
 const { clearRoomMessages } = require('./messages')
-const { trackUserRoom, untrackUserRoom, clearRoomFromAllUsers } = require('./reconnect')
 
 const rooms = new Map()
 
@@ -74,7 +73,6 @@ function getRoomParticipants(roomId) {
 function closeRoom(roomId) {
   getIO().to(roomId).emit('room:closed', { roomId })
   clearRoomMessages(roomId)
-  clearRoomFromAllUsers(roomId)
   rooms.delete(roomId)
 }
 
