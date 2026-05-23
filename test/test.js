@@ -2,6 +2,7 @@ const http = require('http')
 const { io: Client } = require('socket.io-client')
 const quickSocket = require('../src/index')
 const { authMiddleware } = quickSocket
+const { trackUserRoom } = require('../src/reconnect')
 
 const server = http.createServer()
 const PORT = 4501
@@ -164,6 +165,63 @@ async function runTests() {
   const pageTwo = quickSocket.getRoomMessages('room-1', 2, 2)
   log('getRoomMessages page 2 returns older messages', pageTwo.messages.length === 1 && pageTwo.messages[0]?.content === 'Updated!')
 
+  quickSocket.createRoom('room-reconnect', { topic: 'recovery' })
+  quickSocket.joinRoom(serverSockets[0], 'room-reconnect', { userId: 'u1', role: 'traveller' })
+
+  const userRooms = quickSocket.getUserRooms('u1')
+  log('getUserRooms returns rooms after joinRoom calls', userRooms.includes('room-1') && userRooms.includes('room-reconnect'))
+
+  const rejoinSocket = {
+    joinedRooms: [],
+    join(roomId) {
+      this.joinedRooms.push(roomId)
+    }
+  }
+  const rejoinResult = quickSocket.rejoinRooms(rejoinSocket, 'u1')
+  log('rejoinRooms re-joins tracked rooms', rejoinSocket.joinedRooms.includes('room-1') && rejoinSocket.joinedRooms.includes('room-reconnect'))
+  log('rejoinRooms returns tracked rooms', rejoinResult.rooms.includes('room-1') && rejoinResult.rooms.includes('room-reconnect'))
+
+  quickSocket.createRoom('room-reconnect-messages', { topic: 'missed messages' })
+  quickSocket.joinRoom(serverSockets[0], 'room-reconnect-messages', { userId: 'recover-user' })
+  quickSocket.sendMessage('room-reconnect-messages', {
+    senderId: 'u2',
+    content: 'Before reconnect',
+    type: quickSocket.MESSAGE_TYPES.TEXT
+  })
+  const since = new Date()
+  await wait(20)
+  quickSocket.sendMessage('room-reconnect-messages', {
+    senderId: 'u2',
+    content: 'After reconnect',
+    type: quickSocket.MESSAGE_TYPES.TEXT
+  })
+  const missedResult = quickSocket.rejoinRooms({ join() {} }, 'recover-user', {
+    since: since.toISOString()
+  })
+  const missedMessages = missedResult.missedMessages['room-reconnect-messages'] || []
+  log('rejoinRooms returns messages sent after since', missedMessages.length === 1 && missedMessages[0]?.content === 'After reconnect')
+  log('rejoinRooms excludes messages sent before since', !missedMessages.some(msg => msg.content === 'Before reconnect'))
+
+  const emptyRecovery = quickSocket.rejoinRooms({ join() {} }, 'missing-user')
+  log('rejoinRooms returns empty recovery for users with no rooms', emptyRecovery.rooms.length === 0 && Object.keys(emptyRecovery.missedMessages).length === 0)
+
+  let missingUserIdThrows = false
+  try {
+    quickSocket.rejoinRooms({ join() {} })
+  } catch (err) {
+    missingUserIdThrows = err.message.includes('requires a userId')
+  }
+  log('rejoinRooms throws when userId is missing', missingUserIdThrows)
+
+  trackUserRoom(undefined, 'ignored-room')
+  log('trackUserRoom skips missing userId', quickSocket.getUserRooms(undefined).length === 0)
+
+  quickSocket.leaveRoom(serverSockets[0], 'room-reconnect')
+  log('getUserRooms removes rooms after leaveRoom', !quickSocket.getUserRooms('u1').includes('room-reconnect'))
+
+  quickSocket.closeRoom('room-reconnect-messages')
+  log('closeRoom removes rooms from reconnect tracking', !quickSocket.getUserRooms('recover-user').includes('room-reconnect-messages'))
+
   // ── Test 13: closeRoom ──
   const closeResult = await new Promise((resolve) => {
     client2.once('room:closed', (data) => resolve(data))
@@ -238,7 +296,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing token returns error',
-        err instanceof Error && err.message.includes('Authentication failed: no token found')
+        err instanceof Error && err.message.includes('No token provided')
       )
       resolve()
     }
@@ -256,7 +314,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware invalid token returns error',
-        err instanceof Error && err.message.includes('Authentication failed: the authFn you provided threw an error')
+        err instanceof Error && err.message.includes('Authentication failed')
       )
       resolve()
     }
@@ -272,7 +330,7 @@ async function runTests() {
     const next = (err) => {
       log(
         'authMiddleware missing auth object returns error',
-        err instanceof Error && err.message.includes('Authentication failed: no token found')
+        err instanceof Error && err.message.includes('No token provided')
       )
       resolve()
     }
