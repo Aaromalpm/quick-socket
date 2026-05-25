@@ -72,7 +72,17 @@ function editMessage(roomId, messageId, newContent) {
 }
 
 function deleteMessage(roomId, messageId) {
+  if (!roomId) throw new Error(
+    '[quick-socket] deleteMessage() requires a roomId as the first argument.'
+  )
+  if (!messageId) throw new Error(
+    '[quick-socket] deleteMessage() requires a messageId as the second argument.'
+  )
   const messages = roomMessages.get(roomId) || []
+  const messageExists = messages.some(msg => msg.id === messageId)
+  if (!messageExists) throw new Error(
+    `[quick-socket] deleteMessage() could not find message "${messageId}" in room "${roomId}".`
+  )
   roomMessages.set(roomId, messages.filter(msg => msg.id !== messageId))
   getIO().to(roomId).emit('message:deleted', {
     messageId,
