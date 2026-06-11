@@ -114,14 +114,6 @@ async function runTests() {
   })
   log('editMessage delivers edited event', editResult?.content === 'Updated!')
 
-  // ── Test 9: deleteMessage ──
-  const deleteResult = await new Promise((resolve) => {
-    client2.once('message:deleted', (data) => resolve(data))
-    quickSocket.deleteMessage('room-1', 'msg-001')
-    setTimeout(() => resolve(null), 2000)
-  })
-  log('deleteMessage delivers deleted event', deleteResult?.messageId === 'msg-001')
-
   // ── Test 10: markDelivered ──
   const deliveredResult = await new Promise((resolve) => {
     client2.once('message:delivered', (data) => resolve(data))
@@ -164,7 +156,15 @@ async function runTests() {
   const pageTwo = quickSocket.getRoomMessages('room-1', 2, 2)
   log('getRoomMessages page 2 returns older messages', pageTwo.messages.length === 1 && pageTwo.messages[0]?.content === 'Updated!')
 
-  // ── Test 13: closeRoom ──
+  // ── Test 13: deleteMessage ──
+  const deleteResult = await new Promise((resolve) => {
+    client2.once('message:deleted', (data) => resolve(data))
+    quickSocket.deleteMessage('room-1', msgResult.id)
+    setTimeout(() => resolve(null), 2000)
+  })
+  log('deleteMessage delivers deleted event', deleteResult?.messageId === msgResult.id)
+
+  // ── Test 14: closeRoom ──
   const closeResult = await new Promise((resolve) => {
     client2.once('room:closed', (data) => resolve(data))
     quickSocket.closeRoom('room-1')
@@ -197,6 +197,13 @@ async function runTests() {
     validationPassed = false
   } catch (err) {
     if (!err.message.includes('non-empty string roomId')) validationPassed = false
+  }
+
+  try {
+    quickSocket.deleteMessage('room-1', 'missing-message')
+    validationPassed = false
+  } catch (err) {
+    if (!err.message.includes('could not find message')) validationPassed = false
   }
 
   log('validation throws correct errors for invalid inputs', validationPassed)
