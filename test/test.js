@@ -19,6 +19,45 @@ function wait(ms) {
   return new Promise(res => setTimeout(res, ms))
 }
 
+function waitForEvent(socket, event, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    const handler = (data) => {
+      clearTimeout(timer)
+      resolve(data)
+    }
+    const timer = setTimeout(() => {
+      socket.off(event, handler)
+      resolve(null)
+    }, timeoutMs)
+    socket.once(event, handler)
+  })
+}
+
+function expectNoEvent(socket, event, timeoutMs = 150) {
+  return new Promise((resolve) => {
+    const handler = () => {
+      clearTimeout(timer)
+      resolve(false)
+    }
+    const timer = setTimeout(() => {
+      socket.off(event, handler)
+      resolve(true)
+    }, timeoutMs)
+    socket.once(event, handler)
+  })
+}
+
+async function waitForServerSockets(serverSockets, count) {
+  await new Promise((resolve) => {
+    const check = setInterval(() => {
+      if (serverSockets.length >= count) {
+        clearInterval(check)
+        resolve()
+      }
+    }, 50)
+  })
+}
+
 async function runTests() {
   console.log('\n=== quick-socket Test Suite ===\n')
 
@@ -37,14 +76,7 @@ async function runTests() {
   const client2 = Client(`http://localhost:${PORT}`)
 
   // Wait until both clients are connected server-side
-  await new Promise((resolve) => {
-    const check = setInterval(() => {
-      if (serverSockets.length >= 2) {
-        clearInterval(check)
-        resolve()
-      }
-    }, 50)
-  })
+  await waitForServerSockets(serverSockets, 2)
 
   // ── Test 1: createRoom ──
   const room = quickSocket.createRoom('room-1', { travellerId: 'u1', supplierId: 'u2' })
@@ -303,10 +335,86 @@ async function runTests() {
     middleware(socket, next)
   })
 
+  // ── Test 21: presence first socket online ──
+  const client3 = Client(`http://localhost:${PORT}`)
+  await waitForServerSockets(serverSockets, 3)
+
+  const onlineResult = waitForEvent(client3, 'presence:change')
+  quickSocket.trackPresence(serverSockets[0], 'presence-u1')
+  const onlineChange = await onlineResult
+  log('trackPresence emits online for first user socket', onlineChange?.userId === 'presence-u1' && onlineChange?.status === 'online')
+
+  // ── Test 22: presence second tab does not re-emit online ──
+  const noSecondOnline = expectNoEvent(client3, 'presence:change')
+  quickSocket.trackPresence(serverSockets[1], 'presence-u1')
+  log('trackPresence does not re-emit online for a second socket', await noSecondOnline)
+
+  // ── Test 23: presence tracks another user ──
+  const secondUserOnlineResult = waitForEvent(client3, 'presence:change')
+  quickSocket.trackPresence(serverSockets[2], 'presence-u2')
+  const secondUserOnline = await secondUserOnlineResult
+  log('trackPresence emits online for another user', secondUserOnline?.userId === 'presence-u2' && secondUserOnline?.status === 'online')
+
+  // ── Test 24: setPresence away ──
+  const awayResult = waitForEvent(client3, 'presence:change')
+  quickSocket.setPresence('presence-u1', quickSocket.PRESENCE_STATUS.AWAY, { source: 'test' })
+  const awayChange = await awayResult
+  const storedAway = quickSocket.getPresence('presence-u1')
+  log('setPresence emits away status', awayChange?.userId === 'presence-u1' && awayChange?.status === 'away')
+  log('getPresence returns updated away status', storedAway.status === 'away' && storedAway.meta.source === 'test')
+
+  // ── Test 25: setPresence validation ──
+  let missingUserPresenceThrows = true
+  try {
+    quickSocket.setPresence('missing-user', quickSocket.PRESENCE_STATUS.AWAY)
+    missingUserPresenceThrows = false
+  } catch (err) {
+    missingUserPresenceThrows = err.message.includes('is not tracked')
+  }
+  log('setPresence throws if userId is not tracked', missingUserPresenceThrows)
+
+  let invalidPresenceThrows = true
+  try {
+    quickSocket.setPresence('presence-u1', 'busy')
+    invalidPresenceThrows = false
+  } catch (err) {
+    invalidPresenceThrows = err.message.includes('invalid status')
+  }
+  log('setPresence throws if status is invalid', invalidPresenceThrows)
+
+  // ── Test 26: unknown and room presence snapshots ──
+  const unknownPresence = quickSocket.getPresence('unknown-user')
+  log('getPresence returns offline for unknown users', unknownPresence.status === 'offline' && unknownPresence.lastSeen === null)
+
+  quickSocket.createRoom('presence-room')
+  quickSocket.joinRoom(serverSockets[0], 'presence-room', { userId: 'presence-u1' })
+  quickSocket.joinRoom(serverSockets[2], 'presence-room', { userId: 'presence-u2' })
+  const roomPresence = quickSocket.getRoomPresence('presence-room')
+  log(
+    'getRoomPresence returns participant presence by userId',
+    roomPresence['presence-u1']?.status === 'away' && roomPresence['presence-u2']?.status === 'online'
+  )
+
+  // ── Test 27: disconnect presence transitions ──
+  const noOfflineWhileSecondSocketOpen = expectNoEvent(client3, 'presence:change')
+  client1.disconnect()
+  log('disconnect does not emit offline while another socket remains', await noOfflineWhileSecondSocketOpen)
+
+  const offlineResult = waitForEvent(client3, 'presence:change')
+  client2.disconnect()
+  const offlineChange = await offlineResult
+  log(
+    'disconnect emits offline when the last socket closes',
+    offlineChange?.userId === 'presence-u1' &&
+      offlineChange?.status === 'offline' &&
+      offlineChange?.lastSeen
+  )
+
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`)
 
   client1.disconnect()
   client2.disconnect()
+  client3.disconnect()
   server.close()
   process.exit(failed > 0 ? 1 : 0)
 }
