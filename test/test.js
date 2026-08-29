@@ -210,17 +210,17 @@ async function runTests() {
 
   log('validation throws correct errors for invalid inputs', validationPassed)
 
-  // ── Test 14: MESSAGE_TYPES constants ──
+  // ── Test 15: MESSAGE_TYPES constants ──
   log('MESSAGE_TYPES.TEXT is "text"', quickSocket.MESSAGE_TYPES.TEXT === 'text')
   log('MESSAGE_TYPES.IMAGE is "image"', quickSocket.MESSAGE_TYPES.IMAGE === 'image')
   log('MESSAGE_TYPES.FILE is "file"', quickSocket.MESSAGE_TYPES.FILE === 'file')
 
-  // ── Test 15: STATUS constants ──
+  // ── Test 16: STATUS constants ──
   log('STATUS.SENT is "sent"', quickSocket.STATUS.SENT === 'sent')
   log('STATUS.DELIVERED is "delivered"', quickSocket.STATUS.DELIVERED === 'delivered')
   log('STATUS.READ is "read"', quickSocket.STATUS.READ === 'read')
 
-  // ── Test 16: presence:change is scoped to shared rooms ──
+  // ── Test 17: presence:change is scoped to shared rooms ──
   await new Promise((resolve) => {
     let sharedRoomReceived = false
     let unrelatedClientReceived = false
@@ -258,7 +258,7 @@ async function runTests() {
     }, 100)
   })
   
-  // ── Test 16: authMiddleware valid token ──
+  // ── Test 18: authMiddleware valid token ──
   await new Promise((resolve) => {
     const mockAuthFn = (token) => {
       if (token === 'valid-token') return { id: 1 }
@@ -276,7 +276,7 @@ async function runTests() {
     middleware(socket, next)
   })
 
-  // ── Test 17: authMiddleware missing token ──
+  // ── Test 19: authMiddleware missing token ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {})
     const socket = {
@@ -292,7 +292,7 @@ async function runTests() {
     middleware(socket, next)
   }) 
   
-  // ── Test 18: authMiddleware invalid token ──
+  // ── Test 20: authMiddleware invalid token ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {
       throw new Error('invalid')
@@ -310,7 +310,7 @@ async function runTests() {
     middleware(socket, next)
   })
   
-  // ── Test 19: authMiddleware missing auth object ──
+  // ── Test 21: authMiddleware missing auth object ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {})
     const socket = {
@@ -326,7 +326,7 @@ async function runTests() {
     middleware(socket, next)
   })
 
-  // ── Test 20: authMiddleware async authFn ──
+  // ── Test 22: authMiddleware async authFn ──
   await new Promise((resolve) => {
     const asyncAuthFn = async (token) => {
       await wait(10)
