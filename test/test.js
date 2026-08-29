@@ -2,6 +2,7 @@ const http = require('http')
 const { io: Client } = require('socket.io-client')
 const quickSocket = require('../src/index')
 const { authMiddleware } = quickSocket
+const { trackUserRoom } = require('../src/reconnect')
 
 const server = http.createServer()
 const PORT = 4501
@@ -35,11 +36,12 @@ async function runTests() {
 
   const client1 = Client(`http://localhost:${PORT}`)
   const client2 = Client(`http://localhost:${PORT}`)
+  const client3 = Client(`http://localhost:${PORT}`)
 
   // Wait until both clients are connected server-side
   await new Promise((resolve) => {
     const check = setInterval(() => {
-      if (serverSockets.length >= 2) {
+      if (serverSockets.length >= 3) {
         clearInterval(check)
         resolve()
       }
@@ -218,6 +220,44 @@ async function runTests() {
   log('STATUS.DELIVERED is "delivered"', quickSocket.STATUS.DELIVERED === 'delivered')
   log('STATUS.READ is "read"', quickSocket.STATUS.READ === 'read')
 
+  // ── Test 16: presence:change is scoped to shared rooms ──
+  await new Promise((resolve) => {
+    let sharedRoomReceived = false
+    let unrelatedClientReceived = false
+
+    quickSocket.trackPresence(client1, 'u1')
+    trackUserRoom('u1', 'room-1')
+
+    client2.once('presence:change', (data) => {
+      if (data.userId === 'u1') {
+        sharedRoomReceived = true
+      }
+    })
+
+    client3.once('presence:change', (data) => {
+      if (data.userId === 'u1') {
+        unrelatedClientReceived = true
+      }
+    })
+
+    quickSocket.setPresence(
+      'u1',
+      quickSocket.PRESENCE_STATUS.AWAY
+    )
+
+    setTimeout(() => {
+      log(
+        'presence:change reaches clients in shared room',
+        sharedRoomReceived
+      )
+      log(
+        'presence:change does not reach unrelated clients',
+        !unrelatedClientReceived
+      )
+      resolve()
+    }, 100)
+  })
+  
   // ── Test 16: authMiddleware valid token ──
   await new Promise((resolve) => {
     const mockAuthFn = (token) => {
@@ -307,6 +347,7 @@ async function runTests() {
 
   client1.disconnect()
   client2.disconnect()
+  client3.disconnect()
   server.close()
   process.exit(failed > 0 ? 1 : 0)
 }

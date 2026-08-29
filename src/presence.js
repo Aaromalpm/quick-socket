@@ -1,5 +1,6 @@
 const { getIO } = require('./server')
 const { getRoomParticipants } = require('./rooms')
+const { getUserRooms } = require('./reconnect')
 
 const presenceMap = new Map()
 
@@ -29,7 +30,7 @@ function trackPresence(socket, userId) {
   user.status = PRESENCE_STATUS.ONLINE
 
   if (wasOffline) {
-    getIO().emit('presence:change', { userId, status: PRESENCE_STATUS.ONLINE, lastSeen: null })
+    emitPresenceChange(userId, { status: PRESENCE_STATUS.ONLINE, lastSeen: null })
   }
 
   socket.on('disconnect', () => {
@@ -37,8 +38,7 @@ function trackPresence(socket, userId) {
     if (user.socketIds.size === 0) {
       user.status = PRESENCE_STATUS.OFFLINE
       user.lastSeen = new Date()
-      getIO().emit('presence:change', {
-        userId,
+      emitPresenceChange(userId, {
         status: PRESENCE_STATUS.OFFLINE,
         lastSeen: user.lastSeen
       })
@@ -57,13 +57,21 @@ function setPresence(userId, status, meta = {}) {
   user.status = status
   if (status === PRESENCE_STATUS.OFFLINE) user.lastSeen = new Date()
   Object.assign(user.meta, meta)
-  getIO().emit('presence:change', { userId, status, lastSeen: user.lastSeen, meta: user.meta })
+  emitPresenceChange(userId, { status, lastSeen: user.lastSeen, meta: user.meta })
 }
 
 function getPresence(userId) {
   const user = presenceMap.get(userId)
   if (!user) return { status: PRESENCE_STATUS.OFFLINE, lastSeen: null, meta: {} }
   return { status: user.status, lastSeen: user.lastSeen, meta: user.meta }
+}
+
+function emitPresenceChange(userId, payload) {
+  const rooms = getUserRooms(userId)
+  if (rooms.length === 0) return
+  rooms.forEach(roomId => {
+    getIO().to(roomId).emit('presence:change', { userId, ...payload })
+  })
 }
 
 function getRoomPresence(roomId) {
