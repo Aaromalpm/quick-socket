@@ -2,6 +2,7 @@ const http = require('http')
 const { io: Client } = require('socket.io-client')
 const quickSocket = require('../src/index')
 const { authMiddleware } = quickSocket
+const { trackUserRoom } = require('../src/reconnect')
 
 const server = http.createServer()
 const PORT = 4501
@@ -35,11 +36,12 @@ async function runTests() {
 
   const client1 = Client(`http://localhost:${PORT}`)
   const client2 = Client(`http://localhost:${PORT}`)
+  const client3 = Client(`http://localhost:${PORT}`)
 
   // Wait until both clients are connected server-side
   await new Promise((resolve) => {
     const check = setInterval(() => {
-      if (serverSockets.length >= 2) {
+      if (serverSockets.length >= 3) {
         clearInterval(check)
         resolve()
       }
@@ -208,17 +210,55 @@ async function runTests() {
 
   log('validation throws correct errors for invalid inputs', validationPassed)
 
-  // ── Test 14: MESSAGE_TYPES constants ──
+  // ── Test 15: MESSAGE_TYPES constants ──
   log('MESSAGE_TYPES.TEXT is "text"', quickSocket.MESSAGE_TYPES.TEXT === 'text')
   log('MESSAGE_TYPES.IMAGE is "image"', quickSocket.MESSAGE_TYPES.IMAGE === 'image')
   log('MESSAGE_TYPES.FILE is "file"', quickSocket.MESSAGE_TYPES.FILE === 'file')
 
-  // ── Test 15: STATUS constants ──
+  // ── Test 16: STATUS constants ──
   log('STATUS.SENT is "sent"', quickSocket.STATUS.SENT === 'sent')
   log('STATUS.DELIVERED is "delivered"', quickSocket.STATUS.DELIVERED === 'delivered')
   log('STATUS.READ is "read"', quickSocket.STATUS.READ === 'read')
 
-  // ── Test 16: authMiddleware valid token ──
+  // ── Test 17: presence:change is scoped to shared rooms ──
+  await new Promise((resolve) => {
+    let sharedRoomReceived = false
+    let unrelatedClientReceived = false
+
+    quickSocket.trackPresence(client1, 'u1')
+    trackUserRoom('u1', 'room-1')
+
+    client2.once('presence:change', (data) => {
+      if (data.userId === 'u1') {
+        sharedRoomReceived = true
+      }
+    })
+
+    client3.once('presence:change', (data) => {
+      if (data.userId === 'u1') {
+        unrelatedClientReceived = true
+      }
+    })
+
+    quickSocket.setPresence(
+      'u1',
+      quickSocket.PRESENCE_STATUS.AWAY
+    )
+
+    setTimeout(() => {
+      log(
+        'presence:change reaches clients in shared room',
+        sharedRoomReceived
+      )
+      log(
+        'presence:change does not reach unrelated clients',
+        !unrelatedClientReceived
+      )
+      resolve()
+    }, 100)
+  })
+  
+  // ── Test 18: authMiddleware valid token ──
   await new Promise((resolve) => {
     const mockAuthFn = (token) => {
       if (token === 'valid-token') return { id: 1 }
@@ -236,7 +276,7 @@ async function runTests() {
     middleware(socket, next)
   })
 
-  // ── Test 17: authMiddleware missing token ──
+  // ── Test 19: authMiddleware missing token ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {})
     const socket = {
@@ -252,7 +292,7 @@ async function runTests() {
     middleware(socket, next)
   }) 
   
-  // ── Test 18: authMiddleware invalid token ──
+  // ── Test 20: authMiddleware invalid token ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {
       throw new Error('invalid')
@@ -270,7 +310,7 @@ async function runTests() {
     middleware(socket, next)
   })
   
-  // ── Test 19: authMiddleware missing auth object ──
+  // ── Test 21: authMiddleware missing auth object ──
   await new Promise((resolve) => {
     const middleware = authMiddleware(() => {})
     const socket = {
@@ -286,7 +326,7 @@ async function runTests() {
     middleware(socket, next)
   })
 
-  // ── Test 20: authMiddleware async authFn ──
+  // ── Test 22: authMiddleware async authFn ──
   await new Promise((resolve) => {
     const asyncAuthFn = async (token) => {
       await wait(10)
@@ -307,6 +347,7 @@ async function runTests() {
 
   client1.disconnect()
   client2.disconnect()
+  client3.disconnect()
   server.close()
   process.exit(failed > 0 ? 1 : 0)
 }
